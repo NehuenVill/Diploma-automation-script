@@ -17,23 +17,43 @@ def generate_and_send_diplomas(smtp_server, smtp_port, sender_email, sender_pass
     # Iterate through each row in the Excel file
     for index, row in data.iterrows():
         name = row['Nombre y apellido']
+        name = " ".join([name.split(" ")[0].capitalize(),name.split(" ")[1].capitalize()])
         email = row['Email address']
-        dni = row['DNI (sin puntos)']
+        dni = str(row['DNI (sin puntos)'])
+
+        string_dni = ""
+
+        for i in range(len(dni)):
+            string_dni += dni[i]
+
+            if len(dni) == 8:
+
+                if i == 1 or i==4:
+
+                    string_dni += "."
+
+            elif len(dni) ==7:
+
+                if i == 0 or i==3:
+
+                    string_dni += "."
+
+
 
         # Open the diploma template
         with Image.open("diploma_1.png") as img:
             draw = ImageDraw.Draw(img)
 
             # Define text position and font
-            font = ImageFont.truetype("arial.ttf", 70)
+            font = ImageFont.truetype("arial.ttf", 55)
 
             # Center the text on the image
-            text_width, text_height = draw.textsize(name, font=font)
-            image_width, image_height = img.size
-            position = (((image_width - text_width) // 2)+100, ((image_height - text_height) // 2)-155)
+            position_name = (795, 507)
+            position_dni = (540, 585)
 
             # Add the text to the image
-            draw.text(position, name, fill="black", font=font,align="left")
+            draw.text(position_name, name, fill="black", font=font,align="left")
+            draw.text(position_dni, string_dni, fill="black", font=font,align="left")
 
             # Save the personalized diploma
             diploma_filename = os.path.join("diplomas", f"Diploma_campamento_para_{name}.png")
