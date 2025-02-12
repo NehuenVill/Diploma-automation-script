@@ -7,40 +7,39 @@ from email import encoders
 from PIL import Image, ImageDraw, ImageFont
 
 # Define the function
-def generate_and_send_diplomas(excel_path, template_path, font_path, output_folder, smtp_server, smtp_port, sender_email, sender_password):
+def generate_and_send_diplomas(smtp_server, smtp_port, sender_email, sender_password):
     # Load the Excel file
-    data = pd.read_excel(excel_path)
+    data = pd.read_excel("form.xlsx")
 
     # Ensure the output folder exists
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs("diplomas", exist_ok=True)
 
     # Iterate through each row in the Excel file
     for index, row in data.iterrows():
-        name = row['Name']
-        surname = row['Surname']
-        email = row['Email']
+        name = row['Nombre y apellido']
+        email = row['Email address']
+        dni = row['DNI (sin puntos)']
 
         # Open the diploma template
-        with Image.open(template_path) as img:
+        with Image.open("diploma_1.png") as img:
             draw = ImageDraw.Draw(img)
 
             # Define text position and font
-            font = ImageFont.truetype(font_path, 60)
-            text = f"{name} {surname}"
+            font = ImageFont.truetype("arial.ttf", 70)
 
             # Center the text on the image
-            text_width, text_height = draw.textsize(text, font=font)
+            text_width, text_height = draw.textsize(name, font=font)
             image_width, image_height = img.size
-            position = ((image_width - text_width) // 2, (image_height - text_height) // 2)
+            position = (((image_width - text_width) // 2)+100, ((image_height - text_height) // 2)-155)
 
             # Add the text to the image
-            draw.text(position, text, fill="black", font=font)
+            draw.text(position, name, fill="black", font=font,align="left")
 
             # Save the personalized diploma
-            diploma_filename = os.path.join(output_folder, f"diploma_{index + 1}.png")
+            diploma_filename = os.path.join("diplomas", f"Diploma_campamento_para_{name}.png")
             img.save(diploma_filename)
 
-        # Send the diploma via email
+"""        # Send the diploma via email
         try:
             msg = MIMEMultipart()
             msg['From'] = sender_email
@@ -68,16 +67,11 @@ def generate_and_send_diplomas(excel_path, template_path, font_path, output_fold
 
         except Exception as e:
             print(f"Failed to send email to {email}: {e}")
-
-# Example usage
+"""
 if __name__ == "__main__":
     generate_and_send_diplomas(
-        excel_path="data.xlsx",  # Path to your Excel file
-        template_path="diploma_template.png",  # Path to your diploma template image
-        font_path="arial.ttf",  # Path to your .ttf font file
-        output_folder="diplomas",  # Output folder for the generated diplomas
-        smtp_server="smtp.gmail.com",  # Your SMTP server (e.g., Gmail)
-        smtp_port=587,  # SMTP port (587 for TLS)
-        sender_email="your_email@example.com",  # Your email address
-        sender_password="your_password"  # Your email password
+        smtp_server="smtp.gmail.com", 
+        smtp_port=587, 
+        sender_email="your_email@example.com",
+        sender_password="your_password"
     )
