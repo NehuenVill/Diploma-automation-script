@@ -1,13 +1,24 @@
 import os
-import smtplib
 import pandas as pd
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 from PIL import Image, ImageDraw, ImageFont
+from dotenv import load_dotenv
+import base64
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email import encoders
+from email.mime.base import MIMEBase
+import pickle
+
+load_dotenv()
+
+SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
 # Define the function
-def generate_and_send_diplomas(smtp_server, smtp_port, sender_email, sender_password):
+def generate_and_send_diplomas():
     # Load the Excel file
     data = pd.read_excel("form.xlsx")
 
@@ -48,7 +59,7 @@ def generate_and_send_diplomas(smtp_server, smtp_port, sender_email, sender_pass
             font = ImageFont.truetype("arial.ttf", 55)
 
             # Center the text on the image
-            position_name = (795, 507)
+            position_name = (785, 515)
             position_dni = (540, 585)
 
             # Add the text to the image
@@ -59,39 +70,68 @@ def generate_and_send_diplomas(smtp_server, smtp_port, sender_email, sender_pass
             diploma_filename = os.path.join("diplomas", f"Diploma_campamento_para_{name}.png")
             img.save(diploma_filename)
 
-"""        # Send the diploma via email
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = email
-            msg['Subject'] = "Your Diploma"
+        # Send the diploma via email
 
-            # Attach the diploma
-            with open(diploma_filename, "rb") as attachment:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(attachment.read())
-                encoders.encode_base64(part)
-                part.add_header(
-                    "Content-Disposition",
-                    f"attachment; filename={os.path.basename(diploma_filename)}",
-                )
-                msg.attach(part)
+        send_email_with_attachment(email, "Campamento Shaolin 2025", "",diploma_filename)
+    
+def authenticate_gmail():
+    """Authenticate the user and return the Gmail API service."""
+    creds = None
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "credentials.json", SCOPES
+            )
+            creds = flow.run_local_server(port=0)
+        
+        # Save credentials for next use
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
 
-            # Connect to the SMTP server and send the email
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, email, msg.as_string())
+    service = build("gmail", "v1", credentials=creds)
+    return service
 
-            print(f"Email sent to {email}")
+# Send an email
+def send_email_with_attachment(recipient, subject, message, attachment_path):
+    """Send an email with an attachment using Gmail API."""
+    service = authenticate_gmail()
 
-        except Exception as e:
-            print(f"Failed to send email to {email}: {e}")
-"""
-if __name__ == "__main__":
-    generate_and_send_diplomas(
-        smtp_server="smtp.gmail.com", 
-        smtp_port=587, 
-        sender_email="your_email@example.com",
-        sender_password="your_password"
+    # Create email message
+    msg = MIMEMultipart()
+    msg["to"] = recipient
+    msg["subject"] = subject
+
+    # Attach email body
+    msg.attach(MIMEText(message, "plain"))
+
+    # Attach file
+    with open(attachment_path, "rb") as attachment:
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attachment.read())
+    
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition",
+        f"attachment; filename={os.path.basename(attachment_path)}",
     )
+    msg.attach(part)
+
+    # Encode email in base64
+    raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+
+    send_message = {"raw": raw_msg}
+
+    # Send email
+    service.users().messages().send(userId="me", body=send_message).execute()
+    print(f"✅ Email sent to {recipient} with attachment: {os.path.basename(attachment_path)}")
+
+
+
+if __name__ == "__main__":
+    generate_and_send_diplomas()
